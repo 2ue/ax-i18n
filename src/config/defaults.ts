@@ -58,7 +58,6 @@ export const DEFAULT_CONFIG: I18nConfig = {
     },
     translation: {
       temperature: 0.3,
-      promptTemplate: 'default',
       batchSize: 20,
     },
   },

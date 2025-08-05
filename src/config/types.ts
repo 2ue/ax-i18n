@@ -138,8 +138,6 @@ export interface TranslationConfig {
   temperature: number;
   /** 最大Token数 */
   maxTokens?: number;
-  /** 提示词模板 */
-  promptTemplate: string;
   /** 批处理大小 */
   batchSize: number;
 }

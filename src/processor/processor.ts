@@ -8,6 +8,7 @@ import { TemplateManager } from '../templates/manager.js';
 import { LLMClient } from '../llm/client.js';
 import { KeyGenerator } from '../utils/key-generator.js';
 import { AutoImportManager } from '../utils/auto-import.js';
+import { SyntaxValidator } from '../utils/syntax-validator.js';
 
 /**
  * 文件处理器
@@ -25,7 +26,12 @@ export class FileProcessor {
     this.config = config;
     this.scanner = new FileScanner(config);
     this.templateManager = new TemplateManager();
-    this.llmClient = new LLMClient(config.llm);
+    this.llmClient = new LLMClient(
+      config.llm, 
+      config.locale, 
+      config.displayLanguage,
+      { enabled: true, cacheDir: '.ai-i18n-cache' }
+    );
     this.keyGenerator = new KeyGenerator(config.keyGeneration);
     this.autoImportManager = new AutoImportManager(config.replacement.autoImport);
   }
@@ -145,6 +151,25 @@ export class FileProcessor {
           autoImportResult.importStatement,
           autoImportResult.insertPosition
         );
+      }
+
+      // 语法验证
+      const fileExtension = path.extname(file.filePath);
+      if (SyntaxValidator.isSupported(fileExtension)) {
+        const validationResult = SyntaxValidator.validateSyntax(finalCode, fileExtension);
+        
+        if (!validationResult.valid) {
+          console.warn(`文件 ${file.relativePath} 语法验证失败:`, validationResult.errors);
+          
+          // 如果语法验证失败，可以选择回滚或继续
+          if (validationResult.errors.some(error => error.includes('语法错误'))) {
+            throw new Error(`语法验证失败: ${validationResult.errors.join(', ')}`);
+          }
+        }
+        
+        if (validationResult.warnings.length > 0) {
+          console.warn(`文件 ${file.relativePath} 语法警告:`, validationResult.warnings);
+        }
       }
 
       // 写回文件

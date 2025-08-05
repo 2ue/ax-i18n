@@ -1,6 +1,4 @@
 import { BaseLanguageModel } from '@langchain/core/language_models/base';
-import { ChatOpenAI } from '@langchain/openai';
-import { ChatAnthropic } from '@langchain/anthropic';
 import { ChatOllama } from '@langchain/community/chat_models/ollama';
 import type { LLMConfig } from '../config/types.js';
 
@@ -13,31 +11,27 @@ export class LLMProviderFactory {
    */
   static createLLM(config: LLMConfig): BaseLanguageModel {
     switch (config.provider) {
-      case 'openai':
+      case 'openai': {
+        const ChatOpenAI = require('@langchain/openai').ChatOpenAI;
         return new ChatOpenAI({
-          openAIApiKey: config.apiKey,
-          modelName: config.model,
+          apiKey: config.apiKey || '',
+          model: config.model,
           temperature: config.temperature,
           maxTokens: config.maxTokens,
-          timeout: config.timeout,
           maxRetries: config.retryCount,
-          ...(config.baseURL && { 
-            configuration: { baseURL: config.baseURL }
-          }),
         });
+      }
 
-      case 'anthropic':
+      case 'anthropic': {
+        const ChatAnthropic = require('@langchain/anthropic').ChatAnthropic;
         return new ChatAnthropic({
-          anthropicApiKey: config.apiKey,
-          modelName: config.model,
+          apiKey: config.apiKey || '',
+          model: config.model,
           temperature: config.temperature,
           maxTokens: config.maxTokens,
-          timeout: config.timeout,
           maxRetries: config.retryCount,
-          ...(config.baseURL && { 
-            clientOptions: { baseURL: config.baseURL }
-          }),
         });
+      }
 
       case 'ollama':
         return new ChatOllama({

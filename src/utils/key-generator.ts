@@ -79,15 +79,21 @@ export class KeyGenerator {
    */
   private convertToPinyin(text: string): string {
     try {
-      const result = pinyin(text, {
-        toneType: this.config.pinyinOptions.toneType,
-        type: this.config.pinyinOptions.type,
-        nonZh: 'consecutive',
-      });
-
+      let result: string | string[];
+      
       if (this.config.pinyinOptions.type === 'array') {
+        result = pinyin(text, {
+          toneType: this.config.pinyinOptions.toneType,
+          type: 'array',
+          nonZh: 'consecutive',
+        });
         return Array.isArray(result) ? result.join(this.config.separator) : String(result);
       } else {
+        result = pinyin(text, {
+          toneType: this.config.pinyinOptions.toneType,
+          type: 'string',
+          nonZh: 'consecutive',
+        });
         return String(result);
       }
     } catch (error) {

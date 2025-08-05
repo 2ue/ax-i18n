@@ -1,4 +1,4 @@
-import type { AutoImportConfig, ImportStatement } from '../config/types.js';
+import type { AutoImportConfig } from '../config/types.js';
 import type { AutoImportResult } from '../processor/types.js';
 
 /**

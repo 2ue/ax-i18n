@@ -32,7 +32,7 @@ export class FileProcessError extends I18nError {
   constructor(message: string, filePath?: string, details?: any) {
     super(message, 'FILE_PROCESS_ERROR', details);
     this.name = 'FileProcessError';
-    this.filePath = filePath;
+    this.filePath = filePath || '';
   }
 }
 
@@ -46,8 +46,8 @@ export class LLMError extends I18nError {
   constructor(message: string, provider?: string, model?: string, details?: any) {
     super(message, 'LLM_ERROR', details);
     this.name = 'LLMError';
-    this.provider = provider;
-    this.model = model;
+    this.provider = provider || '';
+    this.model = model || '';
   }
 }
 
@@ -61,8 +61,8 @@ export class TranslationError extends I18nError {
   constructor(message: string, sourceLanguage?: string, targetLanguage?: string, details?: any) {
     super(message, 'TRANSLATION_ERROR', details);
     this.name = 'TranslationError';
-    this.sourceLanguage = sourceLanguage;
-    this.targetLanguage = targetLanguage;
+    this.sourceLanguage = sourceLanguage || '';
+    this.targetLanguage = targetLanguage || '';
   }
 }
 
@@ -75,7 +75,7 @@ export class TemplateError extends I18nError {
   constructor(message: string, templateName?: string, details?: any) {
     super(message, 'TEMPLATE_ERROR', details);
     this.name = 'TemplateError';
-    this.templateName = templateName;
+    this.templateName = templateName || '';
   }
 }
 
@@ -156,7 +156,7 @@ export class ErrorHandler {
       message: handledError.message,
       code: handledError.code,
       details: handledError.details,
-      stack: handledError.stack,
+      stack: handledError.stack || '',
     };
   }
 

@@ -1,7 +1,7 @@
 import { BaseLanguageModel } from '@langchain/core/language_models/base';
-import { HumanMessage } from '@langchain/core/messages';
 import type { ExtractionResult, TranslationResult, LLMConfig } from '../config/types.js';
 import { LLMProviderFactory } from './factory.js';
+import { CacheManager, type CacheConfig } from '../utils/cache-manager.js';
 
 /**
  * LLM 客户端
@@ -10,9 +10,21 @@ export class LLMClient {
   private extractionLLM: BaseLanguageModel;
   private translationLLM: BaseLanguageModel;
   private config: LLMConfig;
+  private locale: string;
+  private displayLanguage: string;
+  private cacheManager: CacheManager;
 
-  constructor(config: LLMConfig) {
+  constructor(
+    config: LLMConfig, 
+    locale: string = 'zh-CN', 
+    displayLanguage: string = 'en-US',
+    cacheConfig?: Partial<CacheConfig>
+  ) {
     this.config = config;
+    this.locale = locale;
+    this.displayLanguage = displayLanguage;
+    this.cacheManager = new CacheManager(cacheConfig);
+    
     LLMProviderFactory.validateConfig(config);
     
     this.extractionLLM = LLMProviderFactory.createExtractionLLM(config);
@@ -24,13 +36,24 @@ export class LLMClient {
    */
   async extractTexts(prompt: string): Promise<ExtractionResult> {
     try {
+      // 尝试从缓存获取
+      const cachedResult = this.cacheManager.getExtractionResult(prompt);
+      if (cachedResult) {
+        return cachedResult;
+      }
+
       const response = await this.invokeWithRetry(
         this.extractionLLM,
         prompt,
         this.config.retryCount
       );
 
-      return this.parseExtractionResponse(response);
+      const result = this.parseExtractionResponse(response);
+      
+      // 缓存结果
+      this.cacheManager.cacheExtractionResult(prompt, result);
+      
+      return result;
     } catch (error) {
       throw new Error(`文本提取失败: ${error instanceof Error ? error.message : String(error)}`);
     }
@@ -41,13 +64,24 @@ export class LLMClient {
    */
   async translateTexts(prompt: string): Promise<TranslationResult> {
     try {
+      // 尝试从缓存获取
+      const cachedResult = this.cacheManager.getTranslationResult(prompt);
+      if (cachedResult) {
+        return cachedResult;
+      }
+
       const response = await this.invokeWithRetry(
         this.translationLLM,
         prompt,
         this.config.retryCount
       );
 
-      return this.parseTranslationResponse(response);
+      const result = this.parseTranslationResponse(response);
+      
+      // 缓存结果
+      this.cacheManager.cacheTranslationResult(prompt, result);
+      
+      return result;
     } catch (error) {
       throw new Error(`文本翻译失败: ${error instanceof Error ? error.message : String(error)}`);
     }
@@ -88,11 +122,12 @@ export class LLMClient {
    */
   private async translateBatch(texts: Record<string, string>): Promise<Record<string, string>> {
     // 使用 TemplateManager 编译翻译模板
+    const { TemplateManager } = await import('../templates/manager.js');
     const templateManager = new TemplateManager();
     const templateResult = await templateManager.compileTranslationTemplate(
       texts,
-      'zh-CN', // TODO: 从配置中获取
-      'en-US'  // TODO: 从配置中获取
+      this.locale,
+      this.displayLanguage
     );
     
     const result = await this.translateTexts(templateResult.prompt);
@@ -112,8 +147,7 @@ export class LLMClient {
 
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
       try {
-        const message = new HumanMessage(prompt);
-        const response = await llm.invoke([message]);
+        const response = await llm.invoke(prompt);
         return response.content as string;
       } catch (error) {
         lastError = error instanceof Error ? error : new Error(String(error));
@@ -195,5 +229,33 @@ export class LLMClient {
       console.warn('连接测试失败:', error);
       return false;
     }
+  }
+
+  /**
+   * 获取缓存统计信息
+   */
+  getCacheStats() {
+    return this.cacheManager.getStats();
+  }
+
+  /**
+   * 清理缓存
+   */
+  clearCache(): void {
+    this.cacheManager.clear();
+  }
+
+  /**
+   * 清理过期缓存
+   */
+  cleanupCache(): void {
+    this.cacheManager.cleanup();
+  }
+
+  /**
+   * 设置缓存启用状态
+   */
+  setCacheEnabled(enabled: boolean): void {
+    this.cacheManager.setEnabled(enabled);
   }
 }
