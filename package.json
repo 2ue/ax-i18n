@@ -1,0 +1,63 @@
+{
+  "name": "ai-i18n",
+  "version": "1.0.0",
+  "description": "AI-powered internationalization tool for extracting and translating text in code files",
+  "main": "dist/index.js",
+  "type": "module",
+  "engines": {
+    "node": ">=16.0.0"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx watch src/cli.ts",
+    "start": "node dist/cli.js",
+    "lint": "eslint src --ext .ts",
+    "lint:fix": "eslint src --ext .ts --fix",
+    "test": "vitest",
+    "test:coverage": "vitest --coverage",
+    "clean": "rimraf dist"
+  },
+  "bin": {
+    "ai-i18n": "dist/cli.js"
+  },
+  "keywords": [
+    "i18n",
+    "internationalization",
+    "ai",
+    "llm",
+    "translation",
+    "extraction"
+  ],
+  "author": "AI-i18n Team",
+  "license": "MIT",
+  "dependencies": {
+    "@langchain/core": "^0.1.52", 
+    "@langchain/openai": "^0.0.28",
+    "@langchain/anthropic": "^0.1.37",
+    "@langchain/community": "^0.0.50",
+    "commander": "^11.1.0",
+    "fast-glob": "^3.3.2",
+    "fs-extra": "^11.2.0",
+    "pinyin-pro": "^3.18.4",
+    "chalk": "^5.3.0",
+    "ora": "^7.0.1",
+    "inquirer": "^9.2.12",
+    "cosmiconfig": "^9.0.0",
+    "joi": "^17.11.0",
+    "lodash-es": "^4.17.21"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.5",
+    "@types/fs-extra": "^11.0.4",
+    "@types/inquirer": "^9.0.7",
+    "@types/lodash-es": "^4.17.12",
+    "@typescript-eslint/eslint-plugin": "^6.15.0",
+    "@typescript-eslint/parser": "^6.15.0",
+    "eslint": "^8.56.0",
+    "rimraf": "^5.0.5",
+    "tsx": "^4.6.2",
+    "typescript": "^5.3.3",
+    "vitest": "^1.1.0",
+    "@vitest/coverage-v8": "^1.1.0"
+  }
+}
