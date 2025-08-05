@@ -40,6 +40,8 @@ export class CacheManager {
   private config: CacheConfig;
   private memoryCache = new Map<string, CacheEntry>();
   private cacheFilePath: string;
+  private cleanupTimer?: NodeJS.Timeout;
+  private hitStats = { hits: 0, misses: 0 };
 
   constructor(config: Partial<CacheConfig> = {}) {
     this.config = {
@@ -53,8 +55,32 @@ export class CacheManager {
     
     this.cacheFilePath = path.join(this.config.cacheDir, 'llm-cache.json');
     
-    if (this.config.enabled && this.config.persistent) {
-      this.loadFromDisk();
+    if (this.config.enabled) {
+      if (this.config.persistent) {
+        this.loadFromDisk();
+      }
+      // 启动定期清理
+      this.startPeriodicCleanup();
+    }
+  }
+
+  /**
+   * 启动定期清理
+   */
+  private startPeriodicCleanup(): void {
+    // 每10分钟清理一次过期缓存
+    this.cleanupTimer = setInterval(() => {
+      this.cleanExpired();
+    }, 10 * 60 * 1000);
+  }
+
+  /**
+   * 停止定期清理
+   */
+  stopPeriodicCleanup(): void {
+    if (this.cleanupTimer) {
+      clearInterval(this.cleanupTimer);
+      this.cleanupTimer = undefined as any;
     }
   }
 
@@ -142,13 +168,18 @@ export class CacheManager {
     if (!this.config.enabled) return null;
 
     const entry = this.memoryCache.get(key);
-    if (!entry) return null;
-
-    if (this.isExpired(entry)) {
-      this.memoryCache.delete(key);
+    if (!entry) {
+      this.hitStats.misses++;
       return null;
     }
 
+    if (this.isExpired(entry)) {
+      this.memoryCache.delete(key);
+      this.hitStats.misses++;
+      return null;
+    }
+
+    this.hitStats.hits++;
     return entry.data as T;
   }
 
@@ -189,6 +220,7 @@ export class CacheManager {
    */
   clear(): void {
     this.memoryCache.clear();
+    this.hitStats = { hits: 0, misses: 0 };
     
     if (this.config.persistent) {
       this.saveToDisk();
@@ -275,6 +307,8 @@ export class CacheManager {
     hitRate: number;
     oldestEntry: number | null;
     newestEntry: number | null;
+    hits: number;
+    misses: number;
   } {
     const entries = Array.from(this.memoryCache.values());
     
@@ -288,12 +322,17 @@ export class CacheManager {
       newestTimestamp = Math.max(newestTimestamp, entry.timestamp);
     }
 
+    const totalRequests = this.hitStats.hits + this.hitStats.misses;
+    const hitRate = totalRequests > 0 ? this.hitStats.hits / totalRequests : 0;
+
     return {
       totalEntries: entries.length,
       memoryUsage: totalSize,
-      hitRate: 0, // 需要单独跟踪命中率
+      hitRate,
       oldestEntry: oldestTimestamp === Infinity ? null : oldestTimestamp,
       newestEntry: newestTimestamp === 0 ? null : newestTimestamp,
+      hits: this.hitStats.hits,
+      misses: this.hitStats.misses,
     };
   }
 
@@ -317,7 +356,18 @@ export class CacheManager {
     
     if (!enabled) {
       this.clear();
+      this.stopPeriodicCleanup();
+    } else {
+      this.startPeriodicCleanup();
     }
+  }
+
+  /**
+   * 销毁缓存管理器，清理所有资源
+   */
+  destroy(): void {
+    this.stopPeriodicCleanup();
+    this.clear();
   }
 
   /**

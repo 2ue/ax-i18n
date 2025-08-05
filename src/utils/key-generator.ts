@@ -202,4 +202,18 @@ export class KeyGenerator {
     const validChars = /^[a-zA-Z0-9_\-\.]+$/;
     return validChars.test(key);
   }
+
+  /**
+   * 获取已生成的文本到key的映射
+   */
+  getTextToKeyMap(): Map<string, string> {
+    return new Map(this.textToKeyMap);
+  }
+
+  /**
+   * 获取所有已生成的key
+   */
+  getAllKeys(): Set<string> {
+    return new Set(this.existingKeys);
+  }
 }
