@@ -1,7 +1,6 @@
-import fs from 'fs-extra';
-import path from 'path';
 import type { ScanResult } from '../scanner/types.js';
 import type { I18nConfig } from '../config/types.js';
+import { getFileSystem, type FileSystemService } from '../utils/file-system.js';
 
 /**
  * 文件写入结果
@@ -21,7 +20,11 @@ export interface WriteResult {
  * 文件写入器 - 专门负责文件的写入操作
  */
 export class FileWriter {
-  constructor(private config: I18nConfig) {}
+  private fs: FileSystemService;
+
+  constructor(private config: I18nConfig, fileSystem?: FileSystemService) {
+    this.fs = fileSystem || getFileSystem();
+  }
 
   /**
    * 写入处理后的文件
@@ -33,10 +36,10 @@ export class FileWriter {
       const targetPath = this.getTargetPath(file);
       
       // 确保目标目录存在
-      await fs.ensureDir(path.dirname(targetPath));
+      await this.fs.ensureDir(this.fs.dirname(targetPath));
       
       // 写入文件
-      await fs.writeFile(targetPath, content, 'utf-8');
+      await this.fs.writeFile(targetPath, content, 'utf-8');
       
       return {
         filePath: targetPath,
@@ -68,7 +71,7 @@ export class FileWriter {
 
     try {
       // 确保输出目录存在
-      await fs.ensureDir(this.config.outputDir);
+      await this.fs.ensureDir(this.config.outputDir);
 
       // 生成主语言文件
       const localeResult = await this.writeLocaleFile(
@@ -104,16 +107,16 @@ export class FileWriter {
     const startTime = Date.now();
     
     try {
-      await fs.ensureDir(this.config.outputDir);
+      await this.fs.ensureDir(this.config.outputDir);
       
       const translationFileName = this.config.output.localeFileName.replace('{locale}', targetLanguage);
-      const translationFilePath = path.join(this.config.outputDir, translationFileName);
+      const translationFilePath = this.fs.join(this.config.outputDir, translationFileName);
       
       const translationData = this.config.output.prettyJson
         ? JSON.stringify(translations, null, 2)
         : JSON.stringify(translations);
       
-      await fs.writeFile(translationFilePath, translationData, 'utf-8');
+      await this.fs.writeFile(translationFilePath, translationData, 'utf-8');
       
       console.log(`生成翻译文件: ${translationFilePath}`);
       
@@ -165,8 +168,8 @@ export class FileWriter {
   private getTargetPath(file: ScanResult): string {
     if (this.config.tempDir) {
       // 写入临时目录，保持相对路径结构
-      const relativePath = path.relative(process.cwd(), file.filePath);
-      return path.join(this.config.tempDir, relativePath);
+      const relativePath = this.fs.relative(process.cwd(), file.filePath);
+      return this.fs.join(this.config.tempDir, relativePath);
     } else {
       // 直接覆盖原文件
       return file.filePath;
@@ -184,13 +187,13 @@ export class FileWriter {
     
     try {
       const localeFileName = this.config.output.localeFileName.replace('{locale}', locale);
-      const localeFilePath = path.join(this.config.outputDir, localeFileName);
+      const localeFilePath = this.fs.join(this.config.outputDir, localeFileName);
       
       const localeData = this.config.output.prettyJson 
         ? JSON.stringify(texts, null, 2)
         : JSON.stringify(texts);
       
-      await fs.writeFile(localeFilePath, localeData, 'utf-8');
+      await this.fs.writeFile(localeFilePath, localeData, 'utf-8');
       
       return {
         filePath: localeFilePath,
@@ -215,7 +218,7 @@ export class FileWriter {
   async cleanupTempFiles(): Promise<void> {
     if (this.config.tempDir) {
       try {
-        await fs.remove(this.config.tempDir);
+        await this.fs.remove(this.config.tempDir);
         console.log(`清理临时目录: ${this.config.tempDir}`);
       } catch (error) {
         console.warn(`清理临时目录失败: ${error instanceof Error ? error.message : String(error)}`);

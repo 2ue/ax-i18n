@@ -1,9 +1,8 @@
 import { cosmiconfigSync } from 'cosmiconfig';
-import path from 'path';
-import fs from 'fs-extra';
 import type { I18nConfig } from './types.js';
 import { DEFAULT_CONFIG, CONFIG_FILE_NAMES } from './defaults.js';
 import { validateConfig } from './validation.js';
+import { getFileSystem, type FileSystemService } from '../utils/file-system.js';
 
 // 使用简单的合并函数替代 lodash
 function deepMerge(target: any, source: any): any {
@@ -26,6 +25,11 @@ function deepMerge(target: any, source: any): any {
 export class ConfigManager {
   private config: I18nConfig | null = null;
   private configPath: string | null = null;
+  private fs: FileSystemService;
+
+  constructor(fileSystem?: FileSystemService) {
+    this.fs = fileSystem || getFileSystem();
+  }
 
   /**
    * 加载配置
@@ -34,7 +38,7 @@ export class ConfigManager {
     try {
       if (configPath) {
         // 从指定路径加载
-        this.configPath = path.resolve(configPath);
+        this.configPath = this.fs.resolve(configPath);
         const userConfig = await this.loadConfigFromFile(this.configPath);
         this.config = this.mergeWithDefaults(userConfig);
       } else {
@@ -86,13 +90,14 @@ export class ConfigManager {
    * 初始化配置文件
    */
   async initConfig(outputPath: string = 'i18n.config.json'): Promise<void> {
-    const configPath = path.resolve(outputPath);
+    const configPath = this.fs.resolve(outputPath);
     
-    if (await fs.pathExists(configPath)) {
+    if (await this.fs.pathExists(configPath)) {
       throw new Error(`配置文件已存在: ${configPath}`);
     }
 
-    await fs.writeJSON(configPath, DEFAULT_CONFIG, { spaces: 2 });
+    const content = JSON.stringify(DEFAULT_CONFIG, null, 2);
+    await this.fs.writeFile(configPath, content, 'utf-8');
     console.log(`配置文件已创建: ${configPath}`);
   }
 
@@ -100,14 +105,15 @@ export class ConfigManager {
    * 从文件加载配置
    */
   private async loadConfigFromFile(filePath: string): Promise<Partial<I18nConfig>> {
-    if (!await fs.pathExists(filePath)) {
+    if (!await this.fs.pathExists(filePath)) {
       throw new Error(`配置文件不存在: ${filePath}`);
     }
 
-    const ext = path.extname(filePath);
+    const ext = this.fs.extname(filePath);
     
     if (ext === '.json') {
-      return await fs.readJSON(filePath);
+      const content = await this.fs.readFile(filePath, 'utf-8');
+      return JSON.parse(content);
     } else if (ext === '.js' || ext === '.mjs') {
       const module = await import(filePath);
       return module.default || module;
@@ -168,7 +174,7 @@ export class ConfigManager {
 
     // 检查输出目录
     try {
-      await fs.ensureDir(this.config.outputDir);
+      await this.fs.ensureDir(this.config.outputDir);
     } catch (error) {
       throw new Error(`无法创建输出目录 ${this.config.outputDir}: ${error}`);
     }
@@ -176,7 +182,7 @@ export class ConfigManager {
     // 检查临时目录
     if (this.config.tempDir) {
       try {
-        await fs.ensureDir(this.config.tempDir);
+        await this.fs.ensureDir(this.config.tempDir);
       } catch (error) {
         throw new Error(`无法创建临时目录 ${this.config.tempDir}: ${error}`);
       }

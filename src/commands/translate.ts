@@ -1,10 +1,9 @@
-import fs from 'fs-extra';
-import path from 'path';
 import chalk from 'chalk';
 import ora from 'ora';
 import type { I18nConfig } from '../config/types.js';
 import { TemplateManager } from '../templates/manager.js';
 import { LLMClient } from '../llm/client.js';
+import { getFileSystem, type FileSystemService } from '../utils/file-system.js';
 
 /**
  * 独立翻译命令处理器
@@ -13,10 +12,12 @@ export class TranslateCommand {
   private config: I18nConfig;
   private templateManager: TemplateManager;
   private llmClient: LLMClient;
+  private fs: FileSystemService;
 
-  constructor(config: I18nConfig) {
+  constructor(config: I18nConfig, fileSystem?: FileSystemService) {
     this.config = config;
-    this.templateManager = new TemplateManager();
+    this.fs = fileSystem || getFileSystem();
+    this.templateManager = new TemplateManager(undefined, this.fs);
     this.llmClient = new LLMClient(config.llm);
   }
 
@@ -38,7 +39,7 @@ export class TranslateCommand {
     console.log(`  输出文件: ${outputFile}`);
 
     // 验证源文件
-    if (!await fs.pathExists(sourceFile)) {
+    if (!await this.fs.pathExists(sourceFile)) {
       throw new Error(`源文件不存在: ${sourceFile}`);
     }
 
@@ -85,7 +86,7 @@ export class TranslateCommand {
    */
   private async loadSourceTexts(filePath: string): Promise<Record<string, string>> {
     try {
-      const content = await fs.readFile(filePath, 'utf-8');
+      const content = await this.fs.readFile(filePath, 'utf-8');
       const parsed = JSON.parse(content);
       
       if (typeof parsed !== 'object' || parsed === null) {
@@ -126,14 +127,14 @@ export class TranslateCommand {
     outputFile: string
   ): Promise<void> {
     // 确保输出目录存在
-    await fs.ensureDir(path.dirname(outputFile));
+    await this.fs.ensureDir(this.fs.dirname(outputFile));
     
     // 格式化输出
     const output = this.config.output?.prettyJson 
       ? JSON.stringify(translations, null, 2)
       : JSON.stringify(translations);
     
-    await fs.writeFile(outputFile, output, 'utf-8');
+    await this.fs.writeFile(outputFile, output, 'utf-8');
   }
 
   /**
@@ -141,7 +142,7 @@ export class TranslateCommand {
    */
   private getDefaultSourceFile(): string {
     const fileName = this.config.output?.localeFileName?.replace('{locale}', this.config.locale) || `${this.config.locale}.json`;
-    return path.join(this.config.outputDir, fileName);
+    return this.fs.join(this.config.outputDir, fileName);
   }
 
   /**
@@ -149,7 +150,7 @@ export class TranslateCommand {
    */
   private getDefaultOutputFile(targetLanguage: string): string {
     const fileName = this.config.output?.localeFileName?.replace('{locale}', targetLanguage) || `${targetLanguage}.json`;
-    return path.join(this.config.outputDir, fileName);
+    return this.fs.join(this.config.outputDir, fileName);
   }
 
   /**

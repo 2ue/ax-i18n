@@ -1,7 +1,6 @@
-import fs from 'fs-extra';
-import path from 'path';
 import { createHash } from 'crypto';
 import type { ExtractionResult, TranslationResult } from '../config/types.js';
+import { getFileSystem, type FileSystemService } from './file-system.js';
 
 /**
  * 缓存条目接口
@@ -42,8 +41,10 @@ export class CacheManager {
   private cacheFilePath: string;
   private cleanupTimer?: NodeJS.Timeout;
   private hitStats = { hits: 0, misses: 0 };
+  private fs: FileSystemService;
 
-  constructor(config: Partial<CacheConfig> = {}) {
+  constructor(config: Partial<CacheConfig> = {}, fileSystem?: FileSystemService) {
+    this.fs = fileSystem || getFileSystem();
     this.config = {
       enabled: true,
       cacheDir: '.ai-i18n-cache',
@@ -53,7 +54,7 @@ export class CacheManager {
       ...config,
     };
     
-    this.cacheFilePath = path.join(this.config.cacheDir, 'llm-cache.json');
+    this.cacheFilePath = this.fs.join(this.config.cacheDir, 'llm-cache.json');
     
     if (this.config.enabled) {
       if (this.config.persistent) {
@@ -264,8 +265,9 @@ export class CacheManager {
    */
   private async loadFromDisk(): Promise<void> {
     try {
-      if (await fs.pathExists(this.cacheFilePath)) {
-        const data = await fs.readJSON(this.cacheFilePath);
+      if (await this.fs.pathExists(this.cacheFilePath)) {
+        const content = await this.fs.readFile(this.cacheFilePath, 'utf-8');
+        const data = JSON.parse(content);
         
         // 恢复Map结构并清理过期条目
         for (const [key, entry] of Object.entries(data)) {
@@ -286,13 +288,14 @@ export class CacheManager {
     if (!this.config.persistent) return;
 
     try {
-      await fs.ensureDir(this.config.cacheDir);
+      await this.fs.ensureDir(this.config.cacheDir);
       
       // 清理过期条目后保存
       this.cleanExpired();
       
       const data = Object.fromEntries(this.memoryCache.entries());
-      await fs.writeJSON(this.cacheFilePath, data, { spaces: 2 });
+      const content = JSON.stringify(data, null, 2);
+      await this.fs.writeFile(this.cacheFilePath, content, 'utf-8');
     } catch (error) {
       console.warn('保存缓存失败:', error);
     }
@@ -377,7 +380,7 @@ export class CacheManager {
     this.config = { ...this.config, ...newConfig };
     
     if (newConfig.cacheDir) {
-      this.cacheFilePath = path.join(this.config.cacheDir, 'llm-cache.json');
+      this.cacheFilePath = this.fs.join(this.config.cacheDir, 'llm-cache.json');
     }
   }
 
@@ -386,15 +389,17 @@ export class CacheManager {
    */
   async exportCache(filePath: string): Promise<void> {
     const data = Object.fromEntries(this.memoryCache.entries());
-    await fs.writeJSON(filePath, data, { spaces: 2 });
+    const content = JSON.stringify(data, null, 2);
+    await this.fs.writeFile(filePath, content, 'utf-8');
   }
 
   /**
    * 导入缓存数据
    */
   async importCache(filePath: string): Promise<void> {
-    if (await fs.pathExists(filePath)) {
-      const data = await fs.readJSON(filePath);
+    if (await this.fs.pathExists(filePath)) {
+      const content = await this.fs.readFile(filePath, 'utf-8');
+      const data = JSON.parse(content);
       
       for (const [key, entry] of Object.entries(data)) {
         if (!this.isExpired(entry as CacheEntry)) {

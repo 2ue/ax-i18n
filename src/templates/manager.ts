@@ -1,11 +1,10 @@
-import fs from 'fs-extra';
-import path from 'path';
 import { fileURLToPath } from 'url';
 import type { TemplateVariables, TemplateResult } from './types.js';
+import { getFileSystem, type FileSystemService } from '../utils/file-system.js';
 
 // 获取当前文件的目录路径
 const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+const __dirname = getFileSystem().dirname(__filename);
 
 /**
  * 模板管理器 - 支持文件系统和扩展性
@@ -13,9 +12,11 @@ const __dirname = path.dirname(__filename);
 export class TemplateManager {
   private templateCache = new Map<string, string>();
   private promptsDir: string;
+  private fs: FileSystemService;
 
-  constructor(customPromptsDir?: string) {
-    this.promptsDir = customPromptsDir || path.join(__dirname, 'prompts');
+  constructor(customPromptsDir?: string, fileSystem?: FileSystemService) {
+    this.fs = fileSystem || getFileSystem();
+    this.promptsDir = customPromptsDir || this.fs.join(__dirname, 'prompts');
   }
 
   /**
@@ -28,13 +29,13 @@ export class TemplateManager {
     }
 
     // 从文件系统加载
-    const templatePath = path.join(this.promptsDir, `${templateName}.md`);
+    const templatePath = this.fs.join(this.promptsDir, `${templateName}.md`);
     
-    if (!await fs.pathExists(templatePath)) {
+    if (!await this.fs.pathExists(templatePath)) {
       throw new Error(`模板文件不存在: ${templatePath}`);
     }
 
-    const content = await fs.readFile(templatePath, 'utf-8');
+    const content = await this.fs.readFile(templatePath, 'utf-8');
     
     // 缓存模板内容
     this.templateCache.set(templateName, content);
@@ -97,8 +98,8 @@ export class TemplateManager {
    * 验证模板是否存在
    */
   async hasTemplate(templateName: string): Promise<boolean> {
-    const templatePath = path.join(this.promptsDir, `${templateName}.md`);
-    return await fs.pathExists(templatePath);
+    const templatePath = this.fs.join(this.promptsDir, `${templateName}.md`);
+    return await this.fs.pathExists(templatePath);
   }
 
   /**
@@ -106,10 +107,10 @@ export class TemplateManager {
    */
   async getAvailableTemplates(): Promise<string[]> {
     try {
-      const files = await fs.readdir(this.promptsDir);
+      const files = await this.fs.readdir(this.promptsDir);
       return files
         .filter(file => file.endsWith('.md'))
-        .map(file => path.basename(file, '.md'));
+        .map(file => this.fs.basename(file, '.md'));
     } catch (error) {
       console.warn(`无法读取模板目录 ${this.promptsDir}:`, error);
       return [];
@@ -140,13 +141,13 @@ export class TemplateManager {
    * 添加自定义模板
    */
   async addTemplate(templateName: string, templateContent: string): Promise<void> {
-    const templatePath = path.join(this.promptsDir, `${templateName}.md`);
+    const templatePath = this.fs.join(this.promptsDir, `${templateName}.md`);
     
     // 确保目录存在
-    await fs.ensureDir(this.promptsDir);
+    await this.fs.ensureDir(this.promptsDir);
     
     // 写入模板文件
-    await fs.writeFile(templatePath, templateContent, 'utf-8');
+    await this.fs.writeFile(templatePath, templateContent, 'utf-8');
     
     // 更新缓存
     this.templateCache.set(templateName, templateContent);
@@ -156,10 +157,10 @@ export class TemplateManager {
    * 删除模板
    */
   async removeTemplate(templateName: string): Promise<void> {
-    const templatePath = path.join(this.promptsDir, `${templateName}.md`);
+    const templatePath = this.fs.join(this.promptsDir, `${templateName}.md`);
     
-    if (await fs.pathExists(templatePath)) {
-      await fs.remove(templatePath);
+    if (await this.fs.pathExists(templatePath)) {
+      await this.fs.remove(templatePath);
     }
     
     // 清除缓存
@@ -192,13 +193,13 @@ export class TemplateManager {
    * 复制默认模板到指定目录
    */
   async copyDefaultTemplates(targetDir: string): Promise<void> {
-    const defaultTemplatesDir = path.join(__dirname, 'prompts');
+    const defaultTemplatesDir = this.fs.join(__dirname, 'prompts');
     
     // 确保目标目录存在
-    await fs.ensureDir(targetDir);
+    await this.fs.ensureDir(targetDir);
     
     // 复制所有模板文件
-    await fs.copy(defaultTemplatesDir, targetDir);
+    await this.fs.copy(defaultTemplatesDir, targetDir);
     
     console.log(`默认模板已复制到: ${targetDir}`);
   }
